@@ -1,0 +1,133 @@
+#1. Download vechile sales data -> https://github.com/shashank-mishra219/Hive-Class/blob/main/sales_order_data.csv
+
+--> Downloaded into my pc
+
+#2. Store raw data into hdfs location
+
+--> Step 01 : Copy data from my pc into docker container
+'''
+ docker cp sales_order_data.csv d852e:/opt/lln/
+'''
+
+--> Step 02 : Copy data from docker container into hdfs location
+'''
+hadoop fs -put /opt/lln/sales_order_data.csv /my_file/
+'''
+
+#3. Create a internal hive table "sales_order_csv" which will store csv data sales_order_csv .. make sure to skip header row while creating table
+'''
+create database hive_db;
+use hive_db;
+create table sales_order_csv
+(
+ORDERNUMBER int,
+QUANTITYORDERED int,
+PRICEEACH float,
+ORDERLINENUMBER int,
+SALES float,
+STATUS string,
+QTR_ID int,
+MONTH_ID int,
+YEAR_ID int,
+PRODUCTLINE string,
+MSRP int,
+PRODUCTCODE string,
+PHONE string,
+CITY string,
+STATE string,
+POSTALCODE string,
+COUNTRY string,
+TERRITORY string,
+CONTACTLASTNAME string,
+CONTACTFIRSTNAME string,
+DEALSIZE string,
+)
+row format delimited
+fields terminated by ','
+tblproperties ("skip.header.line.count" = "1");
+'''
+
+
+#4. Load data from hdfs path into "sales_order_csv"
+'''
+load data inpath '/opt/lln/sales_order_csv' into table sales_order_csv;
+'''
+
+#5. Create an internal hive table which will store data in ORC format "sales_order_orc"
+'''
+create database sample;
+use sample;
+create table sales_order_ORC
+(
+ORDERNUMBER int,
+QUANTITYORDERED int,
+PRICEEACH float,
+ORDERLINENUMBER int,
+SALES float,
+STATUS string,
+QTR_ID int,
+MONTH_ID int,
+YEAR_ID int,
+PRODUCTLINE string,
+MSRP int,
+PRODUCTCODE string,
+PHONE string,
+CITY string,
+STATE string,
+POSTALCODE string,
+COUNTRY string,
+TERRITORY string,
+CONTACTLASTNAME string,
+CONTACTFIRSTNAME string,
+DEALSIZE string,
+)
+stored as ORC;
+'''
+
+
+#6. Load data from "sales_order_csv" into "sales_order_orc"
+'''
+Insert into table sales_order_orc select * from sales_order_csv;
+'''
+
+
+#Perform below mentioned queries on "sales_order_orc" table:
+
+a.	Calculate total sales per year
+'''
+select sum(SALES) from sales_order_orc group by YEAR_ID;
+'''
+
+b.	Find a product for which maximum orders were placed
+'''
+select PRODUCTLINE, sum(QUANTITYORDERED) as total_quantity from sales_order_orc group by PRODUCTLINE order by total_quantity desc limit1;
+'''
+
+c.	Calculate the total sales for each quarter
+'''
+select sum(SALES), QTR_ID from sales_order_orc group by QTR_ID;
+'''
+
+d.	In which quarter sales was minimum
+'''
+select QTR_ID, sum(SALES) as total_sales from sales_order_orc group by QTR_ID order by total_sales limit 1;
+'''
+
+e.	In which country sales was maximum and in which country sales was minimum
+'''
+select COUNTRY, MAX(SALES) as maximum_sales from sales_order_orc group by COUNTRY;
+'''
+'''
+select COUNTRY, MIN(SALES) as minumum_sales from sales_order_orc group by COUNTRY;
+'''
+
+f.	Calculate quarterly sales for each city
+'''
+select CITY, QTR_ID,sum(SALES) as total_sales from sales_order_orc group by CITY,QTR_ID;
+'''
+
+h.	Find a month for each year in which maximum number of quantities were sold
+'''
+select MONTH_ID, YEAR_ID, QUANTITYORDERED from(select distinct MONTH_ID, YEAR_ID, QUANTITYORDERED, 
+rank() over (partition by YEAR_ID order by QUANTITYORDERED desc)as r from sales_order_csv)u where u.r=1;
+'''
